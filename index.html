@@ -1,0 +1,156 @@
+<head>
+    <title>Календарь</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+          integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body style="background: #f7f7f7">
+<div id="app">
+    <div v-if="modalTrust" class="modal-wrapper">
+        <div class="d-flex justify-content-center">
+            <div class="modalWindow">
+
+                <div class="modalHeader d-flex justify-content-between">
+                    <h2>Формирование графиков отпусков</h2>
+                    <div class="" @click="clearSelectedDays">
+                        <i class="fa fa-times" @click="modalTrust = false"></i>
+                    </div>
+                </div>
+
+                <div class="modal-errors">
+                    <span class="red" v-if="!trustPeriods">Отсутствует отпускной период длиной в 14 дней</span>
+                    <span class="red" v-else-if="useDays < 31">Необходимо распределить 31 день отпуска</span>
+                </div>
+
+                <div class="modalBody">
+                    <div
+                            class="modal-item d-flex "
+                            v-for="selectedDay in selectedDays"
+                            v-if="selectedDay.length > 0"
+                            :key="selectedDay">
+                        <span class="period-title">Отпуск: {{ selectedDay.period }}</span>
+                        <div class="periods d-flex">
+                            <div class="period-days d-flex flex-column">
+                                <small>Дата начала: </small>
+                                <input type="text" disabled :value="selectedDay.datestart">
+                            </div>
+                            <div class="divide-line"></div>
+                            <div class="period-days d-flex flex-column">
+                                <small>Дата окончания:</small>
+                                <input type="text" disabled :value="selectedDay.dateend">
+                            </div>
+                        </div>
+                        <div class="period-total">{{ calcPeriodsDays(selectedDay.datestart, selectedDay.dateend) }}
+                            дней
+                        </div>
+                    </div>
+
+                    <div class="modalFooter d-flex">
+                        <div class="period-footer-days d-flex">
+                            {{ calcDays }} <span>Дней <br> доступно</span>
+                        </div>
+                        <div class="period-footer-days d-flex">
+                            {{ useDays }} <span>Дней <br> распределено</span>
+                        </div>
+                    </div>
+
+                    <input type="submit" value="Отправить на согласование"
+                           class="btn-send"
+                           v-if="useDays === 31"
+                           v-if="trustSend"
+                           @click="modalTrust = false, sent = true">
+                    <input type="submit" value="Отправить на согласование"
+                           class="btn-send-gray" v-else disabled>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!--   Верхний блок-->
+    <div class="container d-flex justify-content-between top-mobile" style="padding-top:20px">
+        <h2>Мой график отпусков
+            <i class="fa fa-question-circle-o question"
+               @mousedown="showPrompt = !showPrompt"></i>
+        </h2>
+        <span class="prompt"
+              v-if="showPrompt">
+            Укажите перечень отпускных периодов в производственном календаре. Для выбора
+            начала отпускного периода нажмите на дату начала, после этого нажмите на дату
+            окончания отпускного периода. При выходе из раздела все данные будут автоматически
+            сохранены и доступны при следующем открытии меню до момента отправки на согласование.
+            Важно! Необходимо распределить 31 календарный день. Один из выбранных отпускных
+            периодов должен состоять минимум из 14 календарных дней.
+        </span>
+        <div class="d-flex mobile-bottom-top">
+            <div class="days d-flex">
+                {{ calcDays }} <span>Дней <br> доступно</span>
+            </div>
+            <div class="days d-flex">
+                {{ useDays }} <span>Дней <br> распределено</span>
+            </div>
+            <div class="days" @click="takeSelectedDays" v-if="!sent">
+                <input type="submit" @click="modalTrust = !modalTrust" value="Сформировать график">
+            </div>
+            <div class="days" v-else>
+                <input type="submit" class="btn-send-gray" disabled value="Сформировать график">
+            </div>
+        </div>
+    </div>
+
+    <!--    Контент/Содержимое-->
+    <div class="container calendar-space">
+        <div class="row">
+            <div class="col-md-12 d-flex justify-content-between">
+                <h3>2020</h3>
+                <div class="rounds-space d-flex">
+                    <div class="round">
+                        <i class="b-green"></i> <span>Отпускной период</span>
+                    </div>
+                    <div class="round">
+                        <i class="b-red"></i> <span>Отпуск некорректен</span>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="calendar">
+                        <div v-for="month in months" :key="month" class="months">
+                            <h4 class="monthTitle text-center">{{ month.name }}</h4>
+                            <div class="titleMonths">
+                                <span>Пн</span>
+                                <span>Вт</span>
+                                <span>Ср</span>
+                                <span>Чт</span>
+                                <span>Пт</span>
+                                <span>Сб</span>
+                                <span>Вс</span>
+                            </div>
+                            <span v-for="week in month.weeks" :key="week" class="week"  @mousedown="dragging = true">
+                                <span
+                                        v-for="n in even(week)"
+                                        class="numDay"
+                                        @mousedown="calcDays > 0 ? selectingDays(n) : null"
+                                        @mousemove.once="calcDays > 0 ? doDrag(n) : null"
+                                        @mouseup="dragging = false"
+                                        @click="unselectDay(n)"
+                                        :class="{
+                                        selected: n.selectingDaysTrust,
+                                        sent: sentTrust(sent, n.selectingDaysTrust),
+                                        red: weekendTrust(month.name, n)}"
+                                >{{ n.number }}</span><br>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!--    Подключение скриптов-->
+<script src="https://cdn.jsdelivr.net/npm/vue"></script>
+<script src="js/fixIE.js"></script>
+<script src="js/calendar.js"></script>
+<script src="js/app.js"></script>
+</body>
